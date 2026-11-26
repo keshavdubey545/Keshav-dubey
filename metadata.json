@@ -1,0 +1,6 @@
+{
+  "name": "AI Ethics Case Analyzer",
+  "description": "Interactive AI ethics and governance evaluation tool analyzing deployment scenarios against normative ethical theories and international AI standards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
