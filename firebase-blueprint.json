@@ -1,0 +1,223 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user account profile and workspace preferences.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the account owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name.",
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified account email address.",
+          "maxLength": 254
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["light", "dark"],
+          "description": "Preferred UI color theme."
+        },
+        "lastActiveCaseId": {
+          "type": "string",
+          "description": "Most recently opened case identifier.",
+          "maxLength": 128
+        },
+        "recentAction": {
+          "type": "string",
+          "description": "Summary of the user's most recent workspace action.",
+          "maxLength": 240
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["ownerId", "displayName", "email", "theme", "createdAt", "updatedAt"]
+    },
+    "EthicsCase": {
+      "title": "EthicsCase",
+      "description": "AI deployment scenario submitted for ethics evaluation, along with mitigation completion tracking.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the case owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "id": {
+          "type": "string",
+          "description": "Client/document identifier for the case.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Case title.",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed scenario description.",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "domain": {
+          "type": "string",
+          "description": "Deployment sector or domain.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "system": {
+          "type": "object",
+          "description": "Technical architecture, data sources, sensitivity, and safeguards."
+        },
+        "impact": {
+          "type": "object",
+          "description": "Affected groups, scope, reversibility, regions, and scale."
+        },
+        "completedMitigationIds": {
+          "type": "array",
+          "description": "Bounded list of checked-off mitigation IDs (max 50)."
+        },
+        "latestVersion": {
+          "type": "integer",
+          "description": "Highest report version number generated for this case."
+        },
+        "latestRiskScore": {
+          "type": "number",
+          "description": "Latest overall risk score (0-100)."
+        },
+        "latestRiskLevel": {
+          "type": "string",
+          "enum": ["low", "moderate", "high", "critical"],
+          "description": "Latest overall risk level."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": [
+        "ownerId",
+        "id",
+        "title",
+        "description",
+        "domain",
+        "system",
+        "impact",
+        "completedMitigationIds",
+        "latestVersion",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ReportVersion": {
+      "title": "ReportVersion",
+      "description": "Immutable versioned 4-layer AI ethics assessment report for a parent case.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "caseId": {
+          "type": "string",
+          "description": "Parent case ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "version": {
+          "type": "integer",
+          "description": "Monotonic version number."
+        },
+        "report": {
+          "type": "object",
+          "description": "Full structured AnalysisReport object."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": ["ownerId", "caseId", "version", "report", "createdAt"]
+    },
+    "WizardDraft": {
+      "title": "WizardDraft",
+      "description": "Autosaved in-progress case submission wizard state.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "step": {
+          "type": "integer",
+          "description": "Active wizard step (1-4)."
+        },
+        "caseData": {
+          "type": "object",
+          "description": "Partial draft case object."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["ownerId", "step", "caseData", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user account profile, theme preference, and last researched action."
+    },
+    "/users/{userId}/cases/{caseId}": {
+      "schema": { "$ref": "#/entities/EthicsCase" },
+      "description": "User-owned AI ethics deployment scenarios and mitigation completion tracking."
+    },
+    "/users/{userId}/cases/{caseId}/versions/{versionId}": {
+      "schema": { "$ref": "#/entities/ReportVersion" },
+      "description": "Immutable versioned analysis reports generated for a user's case."
+    },
+    "/users/{userId}/drafts/{draftId}": {
+      "schema": { "$ref": "#/entities/WizardDraft" },
+      "description": "Autosaved case wizard draft for cross-device continuity."
+    }
+  }
+}

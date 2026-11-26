@@ -6,6 +6,8 @@ import { AUTOMATION_LABELS, Case, DOMAIN_LABELS } from "../types";
 interface LandingPageProps {
   libraryCount: number;
   analyzedCount: number;
+  resumeTarget?: { caseId: string; title: string; recentAction: string | null } | null;
+  onResumeCase?: (caseId: string) => void;
   onStartNewCase: () => void;
   onOpenLibrary: () => void;
   onRunSampleCase: (sample: Case) => void;
@@ -14,6 +16,8 @@ interface LandingPageProps {
 export default function LandingPage({
   libraryCount,
   analyzedCount,
+  resumeTarget,
+  onResumeCase,
   onStartNewCase,
   onOpenLibrary,
   onRunSampleCase,
@@ -22,6 +26,32 @@ export default function LandingPage({
 
   return (
     <div className="space-y-12">
+      {resumeTarget && onResumeCase && (
+        <div className="p-4 rounded-xl border border-indigo-200 dark:border-indigo-900/70 bg-indigo-50/50 dark:bg-indigo-950/30 flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-0.5 min-w-0">
+            <p className="text-xs font-medium text-indigo-700 dark:text-indigo-400">
+              Previous Session Memory
+            </p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+              {resumeTarget.title}
+            </p>
+            {resumeTarget.recentAction && (
+              <p className="text-xs text-slate-600 dark:text-slate-300 truncate">
+                Last action: {resumeTarget.recentAction}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => onResumeCase(resumeTarget.caseId)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 dark:bg-indigo-600 text-white text-xs font-medium hover:bg-slate-800 dark:hover:bg-indigo-500 whitespace-nowrap shrink-0"
+          >
+            <span>Resume Case</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Split Architectural Hero */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch pt-2">
         <div className="lg:col-span-7 flex flex-col justify-between space-y-6 py-2">

@@ -17,6 +17,9 @@ import { clearDraft, createEmptyCase, loadDraft, saveDraft } from "../utils/stor
 
 interface CaseWizardProps {
   initialCase?: Case | null;
+  cloudDraft?: { step: number; caseData: Case } | null;
+  onDraftChange?: (step: number, caseData: Case) => void;
+  onDraftClear?: () => void;
   onSubmit: (caseData: Case) => void;
   onCancel: () => void;
 }
@@ -130,15 +133,24 @@ function StringListInput({
   );
 }
 
-export default function CaseWizard({ initialCase, onSubmit, onCancel }: CaseWizardProps) {
+export default function CaseWizard({
+  initialCase,
+  cloudDraft,
+  onDraftChange,
+  onDraftClear,
+  onSubmit,
+  onCancel,
+}: CaseWizardProps) {
   const [step, setStep] = useState<number>(() => {
     if (initialCase) return 1;
+    if (cloudDraft?.step) return Math.min(4, Math.max(1, cloudDraft.step));
     const draft = loadDraft();
     return draft?.step ? Math.min(4, Math.max(1, draft.step)) : 1;
   });
 
   const [caseData, setCaseData] = useState<Case>(() => {
     if (initialCase) return structuredClone(initialCase);
+    if (cloudDraft?.caseData) return structuredClone(cloudDraft.caseData);
     const draft = loadDraft();
     return draft?.caseData || createEmptyCase();
   });
@@ -147,14 +159,15 @@ export default function CaseWizard({ initialCase, onSubmit, onCancel }: CaseWiza
   const [selectedSampleId, setSelectedSampleId] = useState<string>("");
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Autosave draft whenever editing a non-submitted or draft case
+  // Autosave draft locally and to Firestore when authenticated
   useEffect(() => {
     const timer = setTimeout(() => {
       saveDraft(step, caseData);
+      onDraftChange?.(step, caseData);
       setLastSavedTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    }, 300);
+    }, 600);
     return () => clearTimeout(timer);
-  }, [step, caseData]);
+  }, [step, caseData, onDraftChange]);
 
   const handleLoadSample = (sampleId: string) => {
     setSelectedSampleId(sampleId);
@@ -172,6 +185,7 @@ export default function CaseWizard({ initialCase, onSubmit, onCancel }: CaseWiza
 
   const handleClearDraft = () => {
     clearDraft();
+    onDraftClear?.();
     setCaseData(createEmptyCase());
     setStep(1);
     setSelectedSampleId("");
@@ -206,6 +220,7 @@ export default function CaseWizard({ initialCase, onSubmit, onCancel }: CaseWiza
       return;
     }
     clearDraft();
+    onDraftClear?.();
     onSubmit({ ...caseData, updatedAt: new Date().toISOString() });
   };
 

@@ -1,0 +1,242 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Hardened Helpers
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isVerifiedOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidRiskLevelOrNull(val) {
+      return val == null || val in ['low', 'moderate', 'high', 'critical'];
+    }
+
+    function isValidNumberOrNull(val) {
+      return val == null || (val is number && val >= 0 && val <= 100);
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data is map
+        && data.keys().hasAll(['ownerId', 'displayName', 'email', 'theme', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'ownerId', 'displayName', 'email', 'theme',
+          'lastActiveCaseId', 'recentAction', 'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == userId
+        && data.displayName is string && data.displayName.size() <= 120
+        && data.email is string && data.email.size() <= 254
+        && data.theme in ['light', 'dark']
+        && (!('lastActiveCaseId' in data) || data.lastActiveCaseId == null || (data.lastActiveCaseId is string && data.lastActiveCaseId.size() <= 128))
+        && (!('recentAction' in data) || data.recentAction == null || (data.recentAction is string && data.recentAction.size() <= 240))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCaseSystem(sys) {
+      return sys is map
+        && sys.keys().hasAll(['modelType', 'automationLevel', 'dataSources', 'dataSensitivity', 'trainingDataOrigin', 'existingSafeguards'])
+        && sys.keys().hasOnly(['modelType', 'automationLevel', 'dataSources', 'dataSensitivity', 'trainingDataOrigin', 'existingSafeguards'])
+        && sys.modelType is string && sys.modelType.size() <= 64
+        && sys.automationLevel in ['human_in_loop', 'human_on_loop', 'fully_automated']
+        && sys.dataSources is list && sys.dataSources.size() <= 30
+        && (sys.dataSources.size() == 0 || sys.dataSources[0] is string)
+        && sys.dataSensitivity is list && sys.dataSensitivity.size() <= 15
+        && (sys.dataSensitivity.size() == 0 || sys.dataSensitivity[0] is string)
+        && sys.trainingDataOrigin is string && sys.trainingDataOrigin.size() <= 4000
+        && sys.existingSafeguards is string && sys.existingSafeguards.size() <= 4000;
+    }
+
+    function isValidCaseImpact(imp) {
+      return imp is map
+        && imp.keys().hasAll(['affectedGroups', 'scope', 'reversibility', 'regions', 'scaleEstimate'])
+        && imp.keys().hasOnly(['affectedGroups', 'scope', 'reversibility', 'regions', 'scaleEstimate'])
+        && imp.affectedGroups is list && imp.affectedGroups.size() <= 30
+        && (imp.affectedGroups.size() == 0 || imp.affectedGroups[0] is string)
+        && imp.scope in ['individual', 'group', 'societal']
+        && imp.reversibility in ['reversible', 'partially', 'irreversible']
+        && imp.regions is list && imp.regions.size() <= 30
+        && (imp.regions.size() == 0 || imp.regions[0] is string)
+        && imp.scaleEstimate is string && imp.scaleEstimate.size() <= 500;
+    }
+
+    function isValidEthicsCase(data, userId, caseId) {
+      return data is map
+        && data.keys().hasAll([
+          'ownerId', 'id', 'title', 'description', 'domain',
+          'system', 'impact', 'completedMitigationIds', 'latestVersion',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'id', 'title', 'description', 'domain',
+          'system', 'impact', 'completedMitigationIds', 'latestVersion',
+          'latestRiskScore', 'latestRiskLevel', 'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == userId
+        && data.id is string && data.id == caseId
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 500
+        && data.description is string && data.description.size() >= 1 && data.description.size() <= 10000
+        && data.domain is string && data.domain.size() >= 1 && data.domain.size() <= 64
+        && isValidCaseSystem(data.system)
+        && isValidCaseImpact(data.impact)
+        && data.completedMitigationIds is list && data.completedMitigationIds.size() <= 50
+        && (data.completedMitigationIds.size() == 0 || data.completedMitigationIds[0] is string)
+        && data.latestVersion is int && data.latestVersion >= 0 && data.latestVersion <= 1000
+        && (!('latestRiskScore' in data) || isValidNumberOrNull(data.latestRiskScore))
+        && (!('latestRiskLevel' in data) || isValidRiskLevelOrNull(data.latestRiskLevel))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidReportVersion(data, userId, caseId) {
+      return data is map
+        && data.keys().hasAll(['ownerId', 'caseId', 'version', 'report', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'caseId', 'version', 'report', 'createdAt'])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == userId
+        && data.caseId is string && data.caseId == caseId
+        && data.version is int && data.version >= 1 && data.version <= 1000
+        && data.report is map
+        && data.report.keys().hasAll([
+          'reportId', 'caseId', 'schemaVersion', 'modelVersion', 'generatedAt',
+          'executiveSummary', 'overallRiskScore', 'overallRiskLevel',
+          'axisScores', 'theories', 'standards', 'risks', 'tradeOffs', 'roadmap',
+          'assumptions', 'limitations', 'humanReviewRecommended'
+        ])
+        && data.report.reportId is string && data.report.reportId.size() <= 128
+        && data.report.caseId is string && data.report.caseId == caseId
+        && data.report.schemaVersion == '1.0'
+        && data.report.overallRiskScore is number && data.report.overallRiskScore >= 0 && data.report.overallRiskScore <= 100
+        && data.report.overallRiskLevel in ['low', 'moderate', 'high', 'critical']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidWizardDraft(data, userId) {
+      return data is map
+        && data.keys().hasAll(['ownerId', 'step', 'caseData', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'step', 'caseData', 'updatedAt'])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == userId
+        && data.step is int && data.step >= 1 && data.step <= 4
+        && data.caseData is map
+        && data.caseData.title is string && data.caseData.title.size() <= 500
+        && data.caseData.description is string && data.caseData.description.size() <= 10000
+        && data.updatedAt is timestamp;
+    }
+
+    // 1. User Profiles & Preferences (strictly owner-isolated PII)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isVerifiedOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isVerifiedOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['theme', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['lastActiveCaseId', 'recentAction', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'theme', 'lastActiveCaseId', 'recentAction', 'updatedAt'])
+        );
+      allow delete: if isValidId(userId) && isVerifiedOwner(userId);
+
+      // 2. User-Owned Ethics Cases
+      match /cases/{caseId} {
+        allow get: if isValidId(userId) && isValidId(caseId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(caseId)
+          && isVerifiedOwner(userId)
+          && isValidEthicsCase(incoming(), userId, caseId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId)
+          && isValidId(caseId)
+          && isVerifiedOwner(userId)
+          && isValidEthicsCase(incoming(), userId, caseId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().id == existing().id
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            // Action: Toggle mitigation progress
+            incoming().diff(existing()).affectedKeys().hasOnly(['completedMitigationIds', 'updatedAt']) ||
+            // Action: Update case inputs or attach new version metadata
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'description', 'domain', 'system', 'impact',
+              'latestVersion', 'latestRiskScore', 'latestRiskLevel', 'updatedAt'
+            ])
+          );
+        allow delete: if isValidId(userId) && isValidId(caseId) && isVerifiedOwner(userId);
+
+        // 3. Immutable Report Versions (Master Gate against parent case)
+        match /versions/{versionId} {
+          allow get: if isValidId(userId) && isValidId(caseId) && isValidId(versionId) && isOwner(userId);
+          allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+          allow create: if isValidId(userId)
+            && isValidId(caseId)
+            && isValidId(versionId)
+            && isVerifiedOwner(userId)
+            && isValidReportVersion(incoming(), userId, caseId)
+            && incoming().createdAt == request.time
+            && existsAfter(/databases/$(database)/documents/users/$(userId)/cases/$(caseId))
+            && getAfter(/databases/$(database)/documents/users/$(userId)/cases/$(caseId)).data.ownerId == request.auth.uid;
+          allow update: if false;
+          allow delete: if isValidId(userId) && isValidId(caseId) && isValidId(versionId) && isVerifiedOwner(userId);
+        }
+      }
+
+      // 4. Autosaved Case Wizard Drafts
+      match /drafts/{draftId} {
+        allow get: if isValidId(userId) && isValidId(draftId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(draftId)
+          && isVerifiedOwner(userId)
+          && isValidWizardDraft(incoming(), userId)
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId)
+          && isValidId(draftId)
+          && isVerifiedOwner(userId)
+          && isValidWizardDraft(incoming(), userId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['step', 'caseData', 'updatedAt']);
+        allow delete: if isValidId(userId) && isValidId(draftId) && isVerifiedOwner(userId);
+      }
+    }
+  }
+}
